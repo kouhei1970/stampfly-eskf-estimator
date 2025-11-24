@@ -1,0 +1,70 @@
+# Indoor Flight Parameters for StampFly
+# Optimized for indoor environments with optical flow and ToF
+
+estimator:
+  type: "ESKF"
+
+  process_noise:
+    sigma_a: 0.15       # Higher due to building vibrations
+    sigma_omega: 0.002  # Slightly higher
+    sigma_bg: 0.0001
+    sigma_ba: 0.002     # Higher for indoor
+
+  initial_covariance:
+    sigma_p: 0.5        # Better initial position knowledge indoors
+    sigma_v: 0.3
+    sigma_theta: 0.1
+    sigma_bg: 0.01
+    sigma_ba: 0.1
+
+sensors:
+  imu:
+    rate_hz: 200
+    accelerometer:
+      noise_density: 0.15
+      bias_stability: 0.002
+    gyroscope:
+      noise_density: 0.002
+      bias_stability: 0.0001
+
+  # Disable magnetometer indoors (magnetic disturbances)
+  magnetometer:
+    enabled: false
+    rate_hz: 0
+    noise_std: 0.5
+
+  barometer:
+    enabled: true
+    rate_hz: 20
+    noise_std: 1.5  # Less reliable indoors
+
+  # ToF is primary altitude sensor indoors
+  tof:
+    enabled: true
+    rate_hz: 50
+    noise_std: 0.05  # Very reliable indoors
+    max_range: 4.0
+    tilt_compensation: true  # Enable for better accuracy
+
+  # Optical flow is critical indoors
+  optical_flow:
+    enabled: true
+    rate_hz: 30
+    noise_std: 0.8  # Good texture on indoor floors
+    min_altitude: 0.1
+    max_altitude: 2.5  # Lower ceiling
+
+constants:
+  gravity: 9.81
+
+outlier_rejection:
+  enabled: true
+  mahalanobis_threshold: 7.81  # Slightly more strict (95% for 2-DOF)
+
+coordinate_system: "NED"
+
+# Indoor-specific settings
+indoor_mode:
+  use_optical_flow_for_position: true
+  disable_gps: true
+  trust_tof_over_barometer: true

@@ -1,0 +1,73 @@
+# Default ESKF Parameters for StampFly
+# This configuration provides balanced parameters for general use
+
+estimator:
+  type: "ESKF"  # Error-State Kalman Filter
+
+  # Process noise (continuous time)
+  process_noise:
+    sigma_a: 0.1        # Acceleration noise [m/s²]
+    sigma_omega: 0.001  # Angular velocity noise [rad/s]
+    sigma_bg: 0.0001    # Gyro bias random walk [rad/s/√s]
+    sigma_ba: 0.001     # Accel bias random walk [m/s²/√s]
+
+  # Initial covariance
+  initial_covariance:
+    sigma_p: 1.0        # Position [m]
+    sigma_v: 0.5        # Velocity [m/s]
+    sigma_theta: 0.1    # Attitude (rotation vector) [rad]
+    sigma_bg: 0.01      # Gyro bias [rad/s]
+    sigma_ba: 0.1       # Accel bias [m/s²]
+
+sensors:
+  # IMU configuration
+  imu:
+    rate_hz: 200
+    accelerometer:
+      noise_density: 0.1  # [m/s²]
+      bias_stability: 0.001
+    gyroscope:
+      noise_density: 0.001  # [rad/s]
+      bias_stability: 0.0001
+
+  # Magnetometer
+  magnetometer:
+    enabled: true
+    rate_hz: 50
+    noise_std: 0.3  # Normalized units
+    declination_deg: 7.0  # Magnetic declination (location dependent)
+    inclination_deg: 49.0  # Magnetic inclination (Japan: ~49°)
+
+  # Barometer
+  barometer:
+    enabled: true
+    rate_hz: 20
+    noise_std: 1.0  # [m]
+
+  # ToF (Time-of-Flight) altimeter
+  tof:
+    enabled: true
+    rate_hz: 50
+    noise_std: 0.1  # [m]
+    max_range: 4.0  # [m]
+    tilt_compensation: false
+
+  # Optical flow
+  optical_flow:
+    enabled: true
+    rate_hz: 30
+    noise_std: 1.0  # [rad/s]
+    min_altitude: 0.1  # Minimum altitude for valid measurements [m]
+    max_altitude: 3.0  # Maximum altitude for valid measurements [m]
+
+# Physical constants
+constants:
+  gravity: 9.81  # [m/s²]
+
+# Outlier rejection
+outlier_rejection:
+  enabled: true
+  mahalanobis_threshold: 9.21  # χ² threshold (3-DOF, 95% confidence)
+
+# Coordinate system: NED (North-East-Down)
+coordinate_system: "NED"

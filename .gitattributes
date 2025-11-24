@@ -1,0 +1,74 @@
+# Auto detect text files and perform LF normalization
+* text=auto
+
+# C++ source files
+*.cpp text eol=lf
+*.hpp text eol=lf
+*.h text eol=lf
+*.c text eol=lf
+*.cc text eol=lf
+*.cxx text eol=lf
+*.hxx text eol=lf
+*.tpp text eol=lf
+
+# Python files
+*.py text eol=lf
+*.pyx text eol=lf
+*.pxd text eol=lf
+
+# Shell scripts
+*.sh text eol=lf
+*.bash text eol=lf
+
+# Configuration files
+*.yaml text eol=lf
+*.yml text eol=lf
+*.json text eol=lf
+*.xml text eol=lf
+*.toml text eol=lf
+*.ini text eol=lf
+*.conf text eol=lf
+*.config text eol=lf
+
+# CMake files
+CMakeLists.txt text eol=lf
+*.cmake text eol=lf
+
+# Documentation
+*.md text eol=lf
+*.txt text eol=lf
+*.rst text eol=lf
+
+# Git files
+.gitignore text eol=lf
+.gitattributes text eol=lf
+.gitmodules text eol=lf
+
+# Binary files (explicitly marked)
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.pdf binary
+*.so binary
+*.dylib binary
+*.dll binary
+*.exe binary
+*.a binary
+*.lib binary
+*.o binary
+*.obj binary
+
+# Archive files
+*.zip binary
+*.tar binary
+*.gz binary
+*.bz2 binary
+*.7z binary
+*.rar binary
+
+# Linguist overrides (for GitHub language statistics)
+docs/reference_impl/* linguist-documentation=false
+examples/* linguist-documentation=false
+*.md linguist-documentation
