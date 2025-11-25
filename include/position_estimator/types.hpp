@@ -1,18 +1,17 @@
 #pragma once
 
-#include <Eigen/Dense>
+#include "stampfly_math/vector3.hpp"
+#include "stampfly_math/quaternion.hpp"
+#include "stampfly_math/matrix.hpp"
 #include <cstdint>
 
 namespace stampfly {
 namespace estimator {
 
-// Eigen type aliases for convenience
-using Vector3d = Eigen::Vector3d;
-using Vector4d = Eigen::Vector4d;
-using VectorXd = Eigen::VectorXd;
-using Matrix3d = Eigen::Matrix3d;
-using MatrixXd = Eigen::MatrixXd;
-using Quaterniond = Eigen::Quaterniond;
+// stampfly_math type aliases for convenience
+using Vector3 = stampfly::math::Vector3;
+using Quaternion = stampfly::math::Quaternion;
+using Matrix = stampfly::math::Matrix;
 
 // State vector dimensions
 constexpr int STATE_DIM = 15;          // Full state dimension
@@ -37,8 +36,8 @@ constexpr int ERR_IDX_ACC_BIAS = 12;  // δb_a (2)
  */
 struct ImuData {
     double timestamp;           // Timestamp in seconds
-    Vector3d acceleration;      // Specific force [m/s²] in body frame
-    Vector3d angular_velocity;  // Angular velocity [rad/s] in body frame
+    Vector3 acceleration;       // Specific force [m/s²] in body frame
+    Vector3 angular_velocity;   // Angular velocity [rad/s] in body frame
 };
 
 /**
@@ -46,7 +45,7 @@ struct ImuData {
  */
 struct MagnetometerData {
     double timestamp;           // Timestamp in seconds
-    Vector3d magnetic_field;    // Magnetic field [unit vector or Gauss] in body frame
+    Vector3 magnetic_field;     // Magnetic field [unit vector or Gauss] in body frame
 };
 
 /**
@@ -70,7 +69,7 @@ struct TofData {
  */
 struct OpticalFlowData {
     double timestamp;           // Timestamp in seconds
-    Vector3d flow_rate;         // Flow rate [rad/s] in x and y, z unused
+    Vector3 flow_rate;          // Flow rate [rad/s] in x and y, z unused
     double quality;             // Quality indicator [0-1]
 };
 
@@ -81,21 +80,21 @@ struct EstimatorState {
     double timestamp;           // Timestamp in seconds
 
     // Position and velocity in world frame (NED)
-    Vector3d position;          // [m]
-    Vector3d velocity;          // [m/s]
+    Vector3 position;           // [m]
+    Vector3 velocity;           // [m/s]
 
     // Attitude
-    Quaterniond quaternion;     // Orientation (body to world)
-    Vector3d euler_angles;      // [roll, pitch, yaw] in radians
+    Quaternion quaternion;      // Orientation (body to world)
+    Vector3 euler_angles;       // [roll, pitch, yaw] in radians
 
     // Biases in body frame
-    Vector3d gyro_bias;         // [rad/s]
-    Eigen::Vector2d acc_bias;   // [m/s²] (x, y only)
+    Vector3 gyro_bias;          // [rad/s]
+    Vector3 acc_bias;           // [m/s²] (x, y only, z component unused)
 
     // Covariance (diagonal elements for key states)
-    Vector3d position_std;      // Position standard deviation [m]
-    Vector3d velocity_std;      // Velocity standard deviation [m/s]
-    Vector3d attitude_std;      // Attitude standard deviation [rad]
+    Vector3 position_std;       // Position standard deviation [m]
+    Vector3 velocity_std;       // Velocity standard deviation [m/s]
+    Vector3 attitude_std;       // Attitude standard deviation [rad]
 };
 
 /**

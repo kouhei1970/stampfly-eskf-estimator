@@ -61,14 +61,14 @@ int main() {
         imu.timestamp = time;
 
         // Hovering: acceleration ~ gravity (with small noise)
-        imu.acceleration = Vector3d(0.01 * std::sin(time),
-                                    0.01 * std::cos(time),
-                                    9.81);
+        imu.acceleration = Vector3(0.01 * std::sin(time),
+                                   0.01 * std::cos(time),
+                                   9.81);
 
         // Hovering: minimal angular velocity
-        imu.angular_velocity = Vector3d(0.001 * std::sin(time * 2),
-                                       0.001 * std::cos(time * 2),
-                                       0.0);
+        imu.angular_velocity = Vector3(0.001 * std::sin(time * 2),
+                                      0.001 * std::cos(time * 2),
+                                      0.0);
 
         // Process IMU (prediction step)
         estimator.processImu(imu);
@@ -80,7 +80,7 @@ int main() {
             MagnetometerData mag;
             mag.timestamp = time;
             // Pointing north in NED frame (with noise)
-            mag.magnetic_field = Vector3d(1.0, 0.0, 0.0);
+            mag.magnetic_field = Vector3(1.0, 0.0, 0.0);
             mag.magnetic_field.normalize();
             estimator.processMagnetometer(mag);
         }
@@ -102,7 +102,7 @@ int main() {
         if (i % 7 == 0) {
             OpticalFlowData flow;
             flow.timestamp = time;
-            flow.flow_rate = Vector3d(0.0, 0.0, 0.0);  // No movement
+            flow.flow_rate = Vector3(0.0, 0.0, 0.0);  // No movement
             flow.quality = 1.0;
             estimator.processOpticalFlow(flow);
         }
@@ -112,21 +112,21 @@ int main() {
             EstimatorState state = estimator.getState();
             std::cout << "\n--- Time: " << time << " s ---\n";
             std::cout << "Position [m]:  ["
-                      << state.position(0) << ", "
-                      << state.position(1) << ", "
-                      << state.position(2) << "]\n";
+                      << state.position.x() << ", "
+                      << state.position.y() << ", "
+                      << state.position.z() << "]\n";
             std::cout << "Velocity [m/s]: ["
-                      << state.velocity(0) << ", "
-                      << state.velocity(1) << ", "
-                      << state.velocity(2) << "]\n";
+                      << state.velocity.x() << ", "
+                      << state.velocity.y() << ", "
+                      << state.velocity.z() << "]\n";
             std::cout << "Euler [deg]:   ["
-                      << state.euler_angles(0) * 180.0 / M_PI << ", "
-                      << state.euler_angles(1) * 180.0 / M_PI << ", "
-                      << state.euler_angles(2) * 180.0 / M_PI << "]\n";
+                      << state.euler_angles.x() * 180.0 / M_PI << ", "
+                      << state.euler_angles.y() * 180.0 / M_PI << ", "
+                      << state.euler_angles.z() * 180.0 / M_PI << "]\n";
             std::cout << "Pos Std [m]:   ["
-                      << state.position_std(0) << ", "
-                      << state.position_std(1) << ", "
-                      << state.position_std(2) << "]\n";
+                      << state.position_std.x() << ", "
+                      << state.position_std.y() << ", "
+                      << state.position_std.z() << "]\n";
         }
     }
 
@@ -135,25 +135,25 @@ int main() {
     EstimatorState final_state = estimator.getState();
 
     std::cout << "Position:  ["
-              << final_state.position(0) << ", "
-              << final_state.position(1) << ", "
-              << final_state.position(2) << "] m\n";
+              << final_state.position.x() << ", "
+              << final_state.position.y() << ", "
+              << final_state.position.z() << "] m\n";
     std::cout << "Velocity:  ["
-              << final_state.velocity(0) << ", "
-              << final_state.velocity(1) << ", "
-              << final_state.velocity(2) << "] m/s\n";
+              << final_state.velocity.x() << ", "
+              << final_state.velocity.y() << ", "
+              << final_state.velocity.z() << "] m/s\n";
     std::cout << "Attitude:  ["
-              << final_state.euler_angles(0) * 180.0 / M_PI << ", "
-              << final_state.euler_angles(1) * 180.0 / M_PI << ", "
-              << final_state.euler_angles(2) * 180.0 / M_PI << "] deg\n";
+              << final_state.euler_angles.x() * 180.0 / M_PI << ", "
+              << final_state.euler_angles.y() * 180.0 / M_PI << ", "
+              << final_state.euler_angles.z() * 180.0 / M_PI << "] deg\n";
 
     std::cout << "\nGyro bias: ["
-              << final_state.gyro_bias(0) << ", "
-              << final_state.gyro_bias(1) << ", "
-              << final_state.gyro_bias(2) << "] rad/s\n";
+              << final_state.gyro_bias.x() << ", "
+              << final_state.gyro_bias.y() << ", "
+              << final_state.gyro_bias.z() << "] rad/s\n";
     std::cout << "Accel bias: ["
-              << final_state.acc_bias(0) << ", "
-              << final_state.acc_bias(1) << "] m/s²\n";
+              << final_state.acc_bias.x() << ", "
+              << final_state.acc_bias.y() << "] m/s²\n";
 
     std::cout << "\nEstimator status: ";
     switch (estimator.getStatus()) {

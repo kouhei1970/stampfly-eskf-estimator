@@ -131,43 +131,43 @@ public:
      * @brief Get position estimate in world frame
      * @return Position [x, y, z] in NED frame [m]
      */
-    Vector3d getPosition() const;
+    Vector3 getPosition() const;
 
     /**
      * @brief Get velocity estimate in world frame
      * @return Velocity [vx, vy, vz] in NED frame [m/s]
      */
-    Vector3d getVelocity() const;
+    Vector3 getVelocity() const;
 
     /**
      * @brief Get attitude as quaternion
      * @return Quaternion representing body-to-world rotation
      */
-    Quaterniond getQuaternion() const;
+    Quaternion getQuaternion() const;
 
     /**
      * @brief Get attitude as Euler angles
      * @return Euler angles [roll, pitch, yaw] in radians
      */
-    Vector3d getEulerAngles() const;
+    Vector3 getEulerAngles() const;
 
     /**
      * @brief Get gyroscope bias estimate
      * @return Gyro bias [bx, by, bz] in body frame [rad/s]
      */
-    Vector3d getGyroBias() const;
+    Vector3 getGyroBias() const;
 
     /**
      * @brief Get accelerometer bias estimate
-     * @return Accel bias [bx, by] in body frame [m/s²] (z excluded)
+     * @return Accel bias [bx, by] in body frame [m/s²] (z component unused)
      */
-    Eigen::Vector2d getAccelBias() const;
+    Vector3 getAccelBias() const;
 
     /**
      * @brief Get state covariance matrix
      * @return Error state covariance matrix (15x15)
      */
-    MatrixXd getCovariance() const;
+    Matrix getCovariance() const;
 
     // ======================== Sensor Suite Integration ========================
 
