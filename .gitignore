@@ -74,6 +74,7 @@ Testing/
 
 # Internal documentation
 GITHUB_PUBLISHING.md
+IMPLEMENTATION_PLAN.md
 
 # OS generated files
 .DS_Store
