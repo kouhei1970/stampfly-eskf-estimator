@@ -1,6 +1,11 @@
 #include "position_estimator/filter_parameters.hpp"
 #include <iostream>
+#include <fstream>
+#include <sstream>
 #include <cmath>
+#include <map>
+#include <vector>
+#include <algorithm>
 
 namespace stampfly {
 namespace estimator {
@@ -199,6 +204,14 @@ ESKFParameters ESKFParameters::createIndoorDefault() {
     params.optical_flow.max_altitude = 3.0;  // Indoor ceiling height
     params.optical_flow.min_quality = 0.5;   // Moderate quality threshold
 
+    // Accelerometer attitude update (for roll/pitch correction)
+    // Note: noise_std should be tuned based on actual sensor characteristics
+    // Higher values = less aggressive attitude correction
+    params.accelerometer_attitude.enabled = true;
+    params.accelerometer_attitude.rate_hz = 50.0;
+    params.accelerometer_attitude.noise_std = 0.5;  // Higher noise = less aggressive correction
+    params.accelerometer_attitude.motion_threshold = 0.5;  // Reject during motion
+
     // Outlier rejection (important for indoor)
     params.outlier_rejection.enabled = true;
     params.outlier_rejection.mahalanobis_threshold = 7.81;  // 95% for 2-DOF
@@ -261,6 +274,12 @@ ESKFParameters ESKFParameters::createOutdoorDefault() {
     params.optical_flow.max_altitude = 10.0;  // Higher ceiling outdoors
     params.optical_flow.min_quality = 0.6;    // Higher quality threshold
 
+    // Accelerometer attitude update (useful outdoors)
+    params.accelerometer_attitude.enabled = true;
+    params.accelerometer_attitude.rate_hz = 50.0;
+    params.accelerometer_attitude.noise_std = 0.08;  // Lower noise outdoors
+    params.accelerometer_attitude.motion_threshold = 0.3;  // Tighter threshold
+
     // Outlier rejection
     params.outlier_rejection.enabled = true;
     params.outlier_rejection.mahalanobis_threshold = 9.49;  // 95% for 3-DOF
@@ -271,13 +290,341 @@ ESKFParameters ESKFParameters::createOutdoorDefault() {
     return params;
 }
 
+// ==================== Simple YAML Parser ====================
+// Minimal YAML parser for configuration files.
+// Supports: nested keys, numbers, booleans, strings, comments.
+// Does NOT support: arrays, multi-line strings, anchors, aliases.
+
+namespace {
+
+// Trim whitespace from both ends of string
+std::string trim(const std::string& s) {
+    size_t start = s.find_first_not_of(" \t\r\n");
+    if (start == std::string::npos) return "";
+    size_t end = s.find_last_not_of(" \t\r\n");
+    return s.substr(start, end - start + 1);
+}
+
+// Count leading spaces (for indentation)
+int countIndent(const std::string& line) {
+    int count = 0;
+    for (char c : line) {
+        if (c == ' ') count++;
+        else if (c == '\t') count += 2;  // Treat tab as 2 spaces
+        else break;
+    }
+    return count;
+}
+
+// Remove quotes from string value
+std::string unquote(const std::string& s) {
+    if (s.size() >= 2) {
+        if ((s.front() == '"' && s.back() == '"') ||
+            (s.front() == '\'' && s.back() == '\'')) {
+            return s.substr(1, s.size() - 2);
+        }
+    }
+    return s;
+}
+
+// Parse a simple value (bool, number, or string)
+struct YamlValue {
+    enum Type { NONE, BOOL, NUMBER, STRING };
+    Type type = NONE;
+    bool boolVal = false;
+    double numVal = 0.0;
+    std::string strVal;
+
+    static YamlValue parse(const std::string& s) {
+        YamlValue v;
+        std::string val = trim(s);
+
+        // Remove comment
+        size_t commentPos = val.find('#');
+        if (commentPos != std::string::npos) {
+            val = trim(val.substr(0, commentPos));
+        }
+
+        if (val.empty()) {
+            return v;
+        }
+
+        // Check for boolean
+        std::string lower = val;
+        std::transform(lower.begin(), lower.end(), lower.begin(), ::tolower);
+        if (lower == "true" || lower == "yes" || lower == "on") {
+            v.type = BOOL;
+            v.boolVal = true;
+            return v;
+        }
+        if (lower == "false" || lower == "no" || lower == "off") {
+            v.type = BOOL;
+            v.boolVal = false;
+            return v;
+        }
+
+        // Check for number
+        try {
+            size_t pos;
+            double d = std::stod(val, &pos);
+            if (pos == val.size()) {
+                v.type = NUMBER;
+                v.numVal = d;
+                return v;
+            }
+        } catch (...) {}
+
+        // Default to string
+        v.type = STRING;
+        v.strVal = unquote(val);
+        return v;
+    }
+};
+
+// Simple hierarchical key-value store
+class YamlConfig {
+public:
+    // Store values with hierarchical keys like "estimator.process_noise.sigma_a"
+    std::map<std::string, YamlValue> values;
+
+    bool load(const std::string& path) {
+        std::ifstream file(path);
+        if (!file.is_open()) {
+            std::cerr << "ERROR: Cannot open YAML file: " << path << "\n";
+            return false;
+        }
+
+        std::vector<std::pair<int, std::string>> keyStack;  // (indent, key)
+        std::string line;
+
+        while (std::getline(file, line)) {
+            // Skip empty lines and comments
+            std::string trimmed = trim(line);
+            if (trimmed.empty() || trimmed[0] == '#') {
+                continue;
+            }
+
+            int indent = countIndent(line);
+
+            // Find colon separator
+            size_t colonPos = trimmed.find(':');
+            if (colonPos == std::string::npos) {
+                continue;  // Invalid line, skip
+            }
+
+            std::string key = trim(trimmed.substr(0, colonPos));
+            std::string valueStr = trim(trimmed.substr(colonPos + 1));
+
+            // Pop keys with equal or greater indent
+            while (!keyStack.empty() && keyStack.back().first >= indent) {
+                keyStack.pop_back();
+            }
+
+            // Build full key path
+            std::string fullKey;
+            for (const auto& kv : keyStack) {
+                if (!fullKey.empty()) fullKey += ".";
+                fullKey += kv.second;
+            }
+            if (!fullKey.empty()) fullKey += ".";
+            fullKey += key;
+
+            // Parse value if present
+            if (!valueStr.empty()) {
+                YamlValue val = YamlValue::parse(valueStr);
+                if (val.type != YamlValue::NONE) {
+                    values[fullKey] = val;
+                }
+            }
+
+            // Push current key for potential children
+            keyStack.push_back({indent, key});
+        }
+
+        return true;
+    }
+
+    double getDouble(const std::string& key, double defaultVal = 0.0) const {
+        auto it = values.find(key);
+        if (it != values.end() && it->second.type == YamlValue::NUMBER) {
+            return it->second.numVal;
+        }
+        return defaultVal;
+    }
+
+    bool getBool(const std::string& key, bool defaultVal = false) const {
+        auto it = values.find(key);
+        if (it != values.end() && it->second.type == YamlValue::BOOL) {
+            return it->second.boolVal;
+        }
+        return defaultVal;
+    }
+
+    std::string getString(const std::string& key, const std::string& defaultVal = "") const {
+        auto it = values.find(key);
+        if (it != values.end() && it->second.type == YamlValue::STRING) {
+            return it->second.strVal;
+        }
+        return defaultVal;
+    }
+
+    bool hasKey(const std::string& key) const {
+        return values.find(key) != values.end();
+    }
+};
+
+} // anonymous namespace
+
 bool ESKFParameters::loadFromYAML(const std::string& yaml_path) {
-    // TODO: Implement YAML loading
-    // For now, this is a placeholder that returns false
-    std::cerr << "WARNING: YAML loading not yet implemented\n";
-    std::cerr << "         Use createIndoorDefault() or createOutdoorDefault() instead\n";
-    std::cerr << "         YAML path requested: " << yaml_path << "\n";
-    return false;
+    YamlConfig config;
+    if (!config.load(yaml_path)) {
+        return false;
+    }
+
+    // Start from indoor defaults
+    *this = createIndoorDefault();
+
+    // ========== Process Noise ==========
+    if (config.hasKey("estimator.process_noise.sigma_a")) {
+        process_noise.sigma_a = config.getDouble("estimator.process_noise.sigma_a");
+    }
+    if (config.hasKey("estimator.process_noise.sigma_omega")) {
+        process_noise.sigma_omega = config.getDouble("estimator.process_noise.sigma_omega");
+    }
+    if (config.hasKey("estimator.process_noise.sigma_bg")) {
+        process_noise.sigma_bg = config.getDouble("estimator.process_noise.sigma_bg");
+    }
+    if (config.hasKey("estimator.process_noise.sigma_ba")) {
+        process_noise.sigma_ba = config.getDouble("estimator.process_noise.sigma_ba");
+    }
+
+    // ========== Initial Covariance ==========
+    if (config.hasKey("estimator.initial_covariance.sigma_p")) {
+        initial_covariance.sigma_p = config.getDouble("estimator.initial_covariance.sigma_p");
+    }
+    if (config.hasKey("estimator.initial_covariance.sigma_v")) {
+        initial_covariance.sigma_v = config.getDouble("estimator.initial_covariance.sigma_v");
+    }
+    if (config.hasKey("estimator.initial_covariance.sigma_theta")) {
+        initial_covariance.sigma_theta = config.getDouble("estimator.initial_covariance.sigma_theta");
+    }
+    if (config.hasKey("estimator.initial_covariance.sigma_bg")) {
+        initial_covariance.sigma_bg = config.getDouble("estimator.initial_covariance.sigma_bg");
+    }
+    if (config.hasKey("estimator.initial_covariance.sigma_ba")) {
+        initial_covariance.sigma_ba = config.getDouble("estimator.initial_covariance.sigma_ba");
+    }
+
+    // ========== IMU ==========
+    if (config.hasKey("sensors.imu.rate_hz")) {
+        imu.rate_hz = config.getDouble("sensors.imu.rate_hz");
+    }
+    if (config.hasKey("sensors.imu.accelerometer.noise_density")) {
+        imu.accel_noise_density = config.getDouble("sensors.imu.accelerometer.noise_density");
+    }
+    if (config.hasKey("sensors.imu.accelerometer.bias_stability")) {
+        imu.accel_bias_stability = config.getDouble("sensors.imu.accelerometer.bias_stability");
+    }
+    if (config.hasKey("sensors.imu.gyroscope.noise_density")) {
+        imu.gyro_noise_density = config.getDouble("sensors.imu.gyroscope.noise_density");
+    }
+    if (config.hasKey("sensors.imu.gyroscope.bias_stability")) {
+        imu.gyro_bias_stability = config.getDouble("sensors.imu.gyroscope.bias_stability");
+    }
+
+    // ========== Magnetometer ==========
+    if (config.hasKey("sensors.magnetometer.enabled")) {
+        magnetometer.enabled = config.getBool("sensors.magnetometer.enabled");
+    }
+    if (config.hasKey("sensors.magnetometer.rate_hz")) {
+        magnetometer.rate_hz = config.getDouble("sensors.magnetometer.rate_hz");
+    }
+    if (config.hasKey("sensors.magnetometer.noise_std")) {
+        magnetometer.noise_std = config.getDouble("sensors.magnetometer.noise_std");
+    }
+    if (config.hasKey("sensors.magnetometer.declination_deg")) {
+        magnetometer.declination_deg = config.getDouble("sensors.magnetometer.declination_deg");
+    }
+
+    // ========== Barometer ==========
+    if (config.hasKey("sensors.barometer.enabled")) {
+        barometer.enabled = config.getBool("sensors.barometer.enabled");
+    }
+    if (config.hasKey("sensors.barometer.rate_hz")) {
+        barometer.rate_hz = config.getDouble("sensors.barometer.rate_hz");
+    }
+    if (config.hasKey("sensors.barometer.noise_std")) {
+        barometer.noise_std = config.getDouble("sensors.barometer.noise_std");
+    }
+
+    // ========== ToF ==========
+    if (config.hasKey("sensors.tof.enabled")) {
+        tof.enabled = config.getBool("sensors.tof.enabled");
+    }
+    if (config.hasKey("sensors.tof.rate_hz")) {
+        tof.rate_hz = config.getDouble("sensors.tof.rate_hz");
+    }
+    if (config.hasKey("sensors.tof.noise_std")) {
+        tof.noise_std = config.getDouble("sensors.tof.noise_std");
+    }
+    if (config.hasKey("sensors.tof.max_range")) {
+        tof.max_range = config.getDouble("sensors.tof.max_range");
+    }
+    if (config.hasKey("sensors.tof.tilt_compensation")) {
+        tof.tilt_compensation = config.getBool("sensors.tof.tilt_compensation");
+    }
+
+    // ========== Optical Flow ==========
+    if (config.hasKey("sensors.optical_flow.enabled")) {
+        optical_flow.enabled = config.getBool("sensors.optical_flow.enabled");
+    }
+    if (config.hasKey("sensors.optical_flow.rate_hz")) {
+        optical_flow.rate_hz = config.getDouble("sensors.optical_flow.rate_hz");
+    }
+    if (config.hasKey("sensors.optical_flow.noise_std")) {
+        optical_flow.noise_std = config.getDouble("sensors.optical_flow.noise_std");
+    }
+    if (config.hasKey("sensors.optical_flow.min_altitude")) {
+        optical_flow.min_altitude = config.getDouble("sensors.optical_flow.min_altitude");
+    }
+    if (config.hasKey("sensors.optical_flow.max_altitude")) {
+        optical_flow.max_altitude = config.getDouble("sensors.optical_flow.max_altitude");
+    }
+    if (config.hasKey("sensors.optical_flow.min_quality")) {
+        optical_flow.min_quality = config.getDouble("sensors.optical_flow.min_quality");
+    }
+
+    // ========== Outlier Rejection ==========
+    if (config.hasKey("outlier_rejection.enabled")) {
+        outlier_rejection.enabled = config.getBool("outlier_rejection.enabled");
+    }
+    if (config.hasKey("outlier_rejection.mahalanobis_threshold")) {
+        outlier_rejection.mahalanobis_threshold = config.getDouble("outlier_rejection.mahalanobis_threshold");
+    }
+
+    // ========== Gravity ==========
+    if (config.hasKey("constants.gravity")) {
+        gravity = config.getDouble("constants.gravity");
+    }
+
+    // ========== Coordinate System ==========
+    if (config.hasKey("coordinate_system")) {
+        std::string cs = config.getString("coordinate_system");
+        if (cs == "NED") {
+            coordinate_system = CoordinateSystem::NED;
+        } else if (cs == "ENU") {
+            coordinate_system = CoordinateSystem::ENU;
+        }
+    }
+
+    // Validate loaded parameters
+    if (!validate()) {
+        std::cerr << "WARNING: Loaded YAML parameters failed validation\n";
+        return false;
+    }
+
+    std::cout << "YAML parameters loaded from: " << yaml_path << "\n";
+    return true;
 }
 
 } // namespace estimator

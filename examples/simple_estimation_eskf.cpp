@@ -29,14 +29,27 @@ int main() {
     std::cout << "  - Optical flow: " << (params.optical_flow.enabled ? "enabled" : "disabled") << "\n";
     std::cout << "  - Magnetometer: " << (params.magnetometer.enabled ? "enabled" : "disabled") << "\n";
     std::cout << "  - ToF sensor: " << (params.tof.enabled ? "enabled" : "disabled") << "\n";
-    std::cout << "  - Barometer: " << (params.barometer.enabled ? "enabled" : "disabled") << "\n\n";
+    std::cout << "  - Barometer: " << (params.barometer.enabled ? "enabled" : "disabled") << "\n";
+    std::cout << "  - Accel attitude: " << (params.accelerometer_attitude.enabled ? "enabled" : "disabled") << "\n\n";
 
     // ========== 2. Create estimator ==========
     ESKFEstimator estimator(params);
 
-    // ========== 3. Initialize with hovering state ==========
-    std::cout << "Initializing estimator with default hovering state...\n";
-    if (!estimator.initializeDefault()) {
+    // ========== 3. Initialize with hovering state at 1m altitude ==========
+    std::cout << "Initializing estimator with hovering state at 1m altitude...\n";
+    EstimatorState initial_state;
+    initial_state.timestamp = 0.0;
+    initial_state.position = Vector3(0.0, 0.0, 1.0);  // 1m altitude in NED
+    initial_state.velocity = Vector3(0.0, 0.0, 0.0);
+    initial_state.quaternion = Quaternion::identity();
+    initial_state.euler_angles = Vector3(0.0, 0.0, 0.0);
+    initial_state.gyro_bias = Vector3(0.0, 0.0, 0.0);
+    initial_state.acc_bias = Vector3(0.0, 0.0, 0.0);
+    initial_state.position_std = Vector3(0.5, 0.5, 0.1);
+    initial_state.velocity_std = Vector3(0.3, 0.3, 0.3);
+    initial_state.attitude_std = Vector3(0.1, 0.1, 0.1);
+
+    if (!estimator.initialize(initial_state)) {
         std::cerr << "ERROR: Failed to initialize estimator\n";
         return 1;
     }
@@ -60,14 +73,21 @@ int main() {
         ImuData imu;
         imu.timestamp = time;
 
-        // Hovering: acceleration ~ gravity (with small noise)
-        imu.acceleration = Vector3(0.01 * std::sin(time),
-                                   0.01 * std::cos(time),
-                                   9.81);
+        // Hovering in NED frame:
+        // The accelerometer measures specific force f = a - g
+        // When hovering with no linear acceleration (a = 0): f = -g = [0, 0, -9.81]
+        //
+        // The prediction step uses: v_dot = R * f + g_W
+        // So when hovering with f = -g: v_dot = R * (-g) + g = 0 (correct!)
+        //
+        // Adding small noise (0.001 m/s²) to simulate sensor noise
+        imu.acceleration = Vector3(0.001 * std::sin(time),
+                                   0.001 * std::cos(time),
+                                   -9.81);  // Specific force (negative g when hovering)
 
-        // Hovering: minimal angular velocity
-        imu.angular_velocity = Vector3(0.001 * std::sin(time * 2),
-                                      0.001 * std::cos(time * 2),
+        // Hovering: minimal angular velocity with small noise
+        imu.angular_velocity = Vector3(0.0001 * std::sin(time * 2),
+                                      0.0001 * std::cos(time * 2),
                                       0.0);
 
         // Process IMU (prediction step)
@@ -87,14 +107,16 @@ int main() {
 
         // Barometer and ToF at 20 Hz
         if (i % 10 == 0) {
+            // In NED frame, z is positive downward
+            // Hovering at 1m altitude means p_z = 1.0
             BarometerData baro;
             baro.timestamp = time;
-            baro.altitude = 0.0;  // Hovering at reference altitude
+            baro.altitude = 1.0;  // 1m below reference (positive in NED)
             estimator.processBarometer(baro);
 
             TofData tof;
             tof.timestamp = time;
-            tof.distance = 1.0;  // 1m above ground
+            tof.distance = 1.0;  // 1m above ground (same as altitude)
             estimator.processTof(tof);
         }
 
@@ -105,6 +127,12 @@ int main() {
             flow.flow_rate = Vector3(0.0, 0.0, 0.0);  // No movement
             flow.quality = 1.0;
             estimator.processOpticalFlow(flow);
+        }
+
+        // Accelerometer attitude update at 50 Hz
+        // Note: This helps correct roll/pitch drift but can be sensitive to noise
+        if (i % 4 == 0) {
+            estimator.processAccelerometer(imu.acceleration);
         }
 
         // Print state every 1 second

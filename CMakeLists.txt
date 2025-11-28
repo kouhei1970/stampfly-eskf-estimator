@@ -22,6 +22,11 @@ message(STATUS "")
 message(STATUS "Building StampFly Math Library (custom implementation)...")
 add_subdirectory(src/stampfly_math)
 
+# ESKF Estimator Library (using stampfly_math)
+message(STATUS "")
+message(STATUS "Building ESKF Estimator Library...")
+add_subdirectory(src/estimator)
+
 # Reference implementation (Eigen3-based, for comparison)
 if(BUILD_REFERENCE_IMPL)
     message(STATUS "")

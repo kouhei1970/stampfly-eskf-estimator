@@ -119,6 +119,21 @@ public:
      */
     bool processOpticalFlow(const OpticalFlowData& flow);
 
+    /**
+     * @brief Process accelerometer measurement for attitude update
+     *
+     * Uses the accelerometer measurement to correct roll and pitch angles
+     * by comparing measured gravity direction with expected gravity.
+     * This is separate from the IMU prediction step.
+     *
+     * Note: This should be called at a lower rate than IMU (e.g., 50 Hz)
+     * to avoid over-correcting during dynamic motion.
+     *
+     * @param acceleration Accelerometer measurement [m/s²] in body frame
+     * @return true if update was accepted
+     */
+    bool processAccelerometer(const Vector3& acceleration);
+
     // ======================== State Access ========================
 
     /**

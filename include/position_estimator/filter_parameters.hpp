@@ -81,6 +81,19 @@ struct OpticalFlowParams {
 };
 
 /**
+ * @brief Accelerometer attitude update parameters
+ *
+ * Uses accelerometer to observe gravity direction and correct roll/pitch.
+ * Should be used at lower rate than IMU to avoid over-correction during motion.
+ */
+struct AccelerometerAttitudeParams {
+    bool enabled = true;
+    double rate_hz = 50.0;           // Update rate [Hz]
+    double noise_std = 0.1;          // Measurement noise [m/s²]
+    double motion_threshold = 0.5;   // Reject if |a| differs from g by this much [m/s²]
+};
+
+/**
  * @brief Outlier rejection parameters
  */
 struct OutlierRejectionParams {
@@ -105,6 +118,7 @@ struct ESKFParameters {
     BarometerParams barometer;
     TofParams tof;
     OpticalFlowParams optical_flow;
+    AccelerometerAttitudeParams accelerometer_attitude;
 
     // Outlier rejection
     OutlierRejectionParams outlier_rejection;
